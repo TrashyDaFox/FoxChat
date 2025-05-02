@@ -1,5 +1,7 @@
 # FoxChat V1
 
+Default Port: 4532
+
 ---
 
 # Packets
@@ -11,7 +13,7 @@ For your convenience, all packages are formatted in JSON. This also uses websock
 ## Packet Structure
 ```json
 {
-    "packet": 0,
+    "type": 0,
     "sentAt": ... // current timestamp in ms
     "data": {
         ...
@@ -24,7 +26,6 @@ For your convenience, all packages are formatted in JSON. This also uses websock
 C->S = Client to Server
 S->C = Server to Client
 X = Client to Server & Server to Client
-A = To aliens
 
 0 = Server Ping (C->S)
 1 = Server Ping Response (S->C)
@@ -32,8 +33,11 @@ A = To aliens
 3 = Authentication Error (S->C)
 4 = Create Account Confirmation (S->C)
 5 = Authentication Success (S->C)
-6 = Fetch Channels (C->S)
-7 = Channels List Response (S->C)
+6 = Authenticate By Token (C->S)
+7 = Server Form (S->C)
+8 = Server Form Response (C->S)
+9 = Client Initialize Data (C->S)
+
 
 ## Pinging
 
@@ -47,6 +51,7 @@ Body:
 - `version`: The FoxChat version the server is based on
 - `name`: The server name
 - `color`: The servers primary color, in decimal format
+- `motd`: A message of the day, if you really want to
 
 ## Login Process
 
@@ -73,46 +78,82 @@ Body:
 Body:
 - `token`: The token for the user. Token format can be determined by the server.
 
-## Channels
-
-### Fetch Channels
+### Authenticate by Token
 
 Body:
-- `token`: Optional argument if you want to fetch channels as another user
+- `token`: The token to login with
 
-### Channels list
+## Server Form
 
-Body:
-- `channels`: A list of channels
+### Requesting Packet Structure
 
-# Data structures
+```ts
+type ButtonControl = {
+    type: 0;
+    id: string;
+    label: string;
+    useAccent?: boolean;
+}
 
-## Channel Types
+type TextInputControl = {
+    type: 1;
+    id: string;
+    label: string;
+    placeholder: string;
+    defaultValue?: string;
+    maxChars?: number;
+    minChars?: number;
+}
 
-0 = Text
+type ToggleControl = {
+    type: 2;
+    id: string;
+    defaultValue?: boolean;
+}
 
-## Channel Visibility
+type Control = ButtonControl | TextInputControl | ToggleControl;
 
-0 = Server Channel
-1 = Group DM
-2 = Private DM
-
-## Channel
-
-```json
-{
-    type: 0,
-    name: "Example Channel",
-    id: <unique id for channel>,
-    type: ChannelVisibility
-    group: {
-        members: [ListOfUserIDs]
-    },
-    private: {
-        users: [ListOfUserIDs]
-    },
-    server: {
-        
+type ServerFormPacket = {
+    type: 7;
+    data: {
+        form: {
+            id: string; // unique ID for the form (required, preferably a UUID)
+            title?: string;
+            body?: string;
+            controls: Control[];
+        }    
     }
+}
+```
+
+### Response Structure
+
+```ts
+type ServerFormResponsePacket = {
+    id: string;
+    requestButton: string; // id of button clicked to submit form
+    formValues: {
+        [id: string]: string | boolean | null
+    }
+}
+```
+
+## General Data Structures
+
+### User Structure
+
+```ts
+type User = {
+    username: string;
+    uuid: string; // the users id. as of FoxChat v1, this isnt required to be an actual uuid but might be in future versions.
+    avatarURL: string; // can be url to image, or base64 url if you want.
+    bannerURL: string; // can be url to image, or base64 url if you want.
+    profileColor: number; // the color of the profile, stored in decimal format (e.g. 0xFFFFFF = 16777215)
+    aboutMe: string; // the users about me
+    pronouns: string; // the users pronouns
+    accountCreatedAt: number; // timestamp of the users creation in MS
+    globalRole: number; // 0 = Member (Limited), 1 = Member (Normal), 2 = Member (Lifted), 3 = Basic Moderator, 4 = Moderator, 5 = Admin, 6 = Head Admin, 7 = Manager, 8 = Lead Manager, 9 = Owner
+    badges: string[]; // the users badges (badges are server defined)
+    bot: boolean; // signifying if the user is a bot or not
 }
 ```
